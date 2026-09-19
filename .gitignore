@@ -172,8 +172,19 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
-# Pyre type checker
-.pyre/
+# Environment variables & Local Config
+.env
+.env.*
+!.env.example
+
+# Project specific caches and stores
+pdf_cache/
+chroma_db/
+qdrant_storage/
+*.db
+*.sqlite
+*.sqlite3
+.langgraph/
 
 # pytype static type analyzer
 .pytype/
@@ -216,3 +227,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+/base
