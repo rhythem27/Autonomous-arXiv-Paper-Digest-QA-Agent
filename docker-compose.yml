@@ -1,0 +1,15 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: arxiv_digest_agent
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./pdf_cache:/app/pdf_cache
+      - ./qdrant_storage:/app/qdrant_storage
+      - ./agent_state.db:/app/agent_state.db
+    restart: "no"
