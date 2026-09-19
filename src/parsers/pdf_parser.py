@@ -177,6 +177,10 @@ def download_pdf(
     if not arxiv_id or not arxiv_id.strip():
         raise PDFDownloadError("Cannot download PDF: Empty arXiv ID provided.")
 
+    # Defensively handle caller swapping url and arxiv_id
+    if arxiv_id.startswith("http") and (not pdf_url or not pdf_url.startswith("http")):
+        pdf_url, arxiv_id = arxiv_id, sanitize_arxiv_id(arxiv_id)
+
     sanitized_id = sanitize_arxiv_id(arxiv_id)
     target_path = get_pdf_cache_path(sanitized_id, cache_dir=cache_dir)
 
@@ -375,7 +379,11 @@ def parse_pdf(
     pdf_path: Union[str, Path],
     fallback_title: str = "",
     fallback_abstract: str = "",
+    title: str = "",
+    abstract: str = "",
 ) -> ParsedPaper:
+    fallback_title = title or fallback_title
+    fallback_abstract = abstract or fallback_abstract
     """Extract structured textual sections, abstract, and references from an academic PDF.
 
     Uses PyMuPDF to extract text spans and font metadata, calculates body font size,

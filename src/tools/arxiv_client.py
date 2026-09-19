@@ -159,13 +159,17 @@ def get_arxiv_client(
         num_retries: Number of retries on network/HTTP failures.
 
     Returns:
-        arxiv.Client: Configured client instance.
+        arxiv.Client: Configured client instance with attached helper methods.
     """
-    return arxiv.Client(
+    client = arxiv.Client(
         page_size=page_size,
         delay_seconds=delay_seconds,
         num_retries=num_retries,
     )
+    # Attach convenience methods for agent nodes
+    setattr(client, "fetch_by_id", lambda aid: fetch_paper_by_id(aid, client=client))
+    setattr(client, "search_papers", lambda q, max_results=None: search_papers_by_topic(q, max_results=max_results, client=client))
+    return client
 
 
 def _result_to_metadata(result: arxiv.Result) -> PaperMetadata:

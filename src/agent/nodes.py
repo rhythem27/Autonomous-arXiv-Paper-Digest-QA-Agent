@@ -11,7 +11,12 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from src.config import settings
 from src.logger import get_logger
 from src.agent.state import AgentState, PaperMetadata, ParsedPaper, ExecutiveBriefing
-from src.tools.arxiv_client import parse_query, get_arxiv_client
+from src.tools.arxiv_client import (
+    parse_query,
+    get_arxiv_client,
+    fetch_paper_by_id,
+    search_papers_by_topic,
+)
 from src.parsers.pdf_parser import download_pdf, parse_pdf
 from src.vectorstore.chunker import chunk_paper
 from src.vectorstore.qdrant_store import (
@@ -52,16 +57,26 @@ def node_arxiv_retrieval(state: AgentState) -> Dict[str, Any]:
     try:
         if query_type == "arxiv_id" and extracted_id:
             logger.info(f"Fetching paper by direct arXiv ID: {extracted_id}")
-            paper = client.fetch_by_id(extracted_id)
+            if hasattr(client, "fetch_by_id"):
+                paper = client.fetch_by_id(extracted_id)
+            else:
+                paper = fetch_paper_by_id(extracted_id, client=client)
             if paper:
                 candidate_papers = [paper]
                 selected_paper = paper
         else:
             logger.info(f"Searching arXiv papers for topic: {search_keywords!r}")
-            candidate_papers = client.search_papers(
-                search_keywords,
-                max_results=settings.arxiv_max_results,
-            )
+            if hasattr(client, "search_papers"):
+                candidate_papers = client.search_papers(
+                    search_keywords,
+                    max_results=settings.arxiv_max_results,
+                )
+            else:
+                candidate_papers = search_papers_by_topic(
+                    search_keywords,
+                    max_results=settings.arxiv_max_results,
+                    client=client,
+                )
 
         if not candidate_papers:
             logger.warning(f"No papers retrieved for query: {search_keywords or extracted_id}")
@@ -160,13 +175,13 @@ def node_fetch_parse(state: AgentState) -> Dict[str, Any]:
 
     try:
         logger.info(f"Downloading PDF for arXiv ID {arxiv_id} from {pdf_url}")
-        pdf_path = download_pdf(pdf_url, arxiv_id)
+        pdf_path = download_pdf(arxiv_id=arxiv_id, pdf_url=pdf_url)
 
         logger.info(f"Parsing structured sections from PDF: {pdf_path}")
         parsed = parse_pdf(
             pdf_path,
-            title=paper.get("title", ""),
-            abstract=paper.get("abstract", ""),
+            fallback_title=paper.get("title", ""),
+            fallback_abstract=paper.get("abstract", ""),
         )
 
         parsing_status = parsed.get("parsing_status", "success")
