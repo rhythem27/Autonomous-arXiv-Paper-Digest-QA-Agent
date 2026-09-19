@@ -8,12 +8,43 @@ import json
 import random
 import re
 import time
-from typing import Dict, Any, List, Optional
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
+import warnings
+from typing import Any, Dict, List, Optional, TypedDict
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+# Suppress noisy library warnings
+warnings.filterwarnings("ignore")
+
+try:
+    import google.genai.models
+
+    google.genai.models.Models._logged_afc_warning = True
+    google.genai.models.AsyncModels._logged_afc_warning = True
+except Exception:
+    pass
 
 from src.config import settings
+
 from src.logger import get_logger
-from src.agent.state import PaperMetadata, ParsedPaper, ExecutiveBriefing
+from src.tools.arxiv_client import PaperMetadata
+from src.parsers.pdf_parser import ParsedPaper
+
+
+class ExecutiveBriefing(TypedDict, total=False):
+    """Structured executive summary of a research paper produced by Gemini."""
+    title: str
+    authors: List[str]
+    arxiv_id: str
+    publish_date: str
+    link: str
+    why_it_matters: str
+    problem_statement: str
+    method_approach: List[str]
+    key_results: List[str]
+    limitations: List[str]
+    suggested_follow_ups: List[str]
+    markdown_output: str
 from src.llm.prompts import (
     BRIEFING_SYSTEM_PROMPT,
     BRIEFING_USER_PROMPT_TEMPLATE,
@@ -204,12 +235,15 @@ def generate_briefing(paper: PaperMetadata, parsed: ParsedPaper) -> ExecutiveBri
             return ExecutiveBriefing(**briefing_dict)
         except Exception as e:
             err_str = str(e)
-            logger.warning(f"Briefing generation attempt {attempt} failed: {e}")
-            if "NOT_FOUND" in err_str and "gemini-3.6-flash" not in str(llm):
-                logger.info("Attempting fallback to gemini-3.6-flash...")
+            if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+                logger.warning(f"Gemini API rate limit reached (attempt {attempt}/3). Retrying with backoff...")
+            elif "NOT_FOUND" in err_str and "gemini-3.6-flash" not in str(llm):
+                logger.info("Switching model to gemini-3.6-flash...")
                 fallback_llm = get_gemini_client(model_override="gemini-3.6-flash")
                 if fallback_llm:
                     llm = fallback_llm
+            else:
+                logger.warning(f"Briefing generation attempt {attempt} error: {err_str[:120]}")
             if attempt < 3:
                 backoff = (2 ** attempt) + random.uniform(0.1, 0.5)
                 time.sleep(backoff)
@@ -266,6 +300,17 @@ def answer_grounded_qa(
     c_words = set(re.findall(r"\w+", context_str.lower()))
     overlap = q_words & c_words
 
+    # Stem / prefix matching for morphological variations (e.g., architectural -> architecture)
+    if not overlap:
+        stem_matches = set()
+        for qw in q_words:
+            if len(qw) >= 4:
+                for cw in c_words:
+                    if len(cw) >= 4 and (cw.startswith(qw[:4]) or qw.startswith(cw[:4])):
+                        stem_matches.add(qw)
+                        break
+        overlap = stem_matches
+
     if not overlap:
         logger.info(f"Query '{question}' has no overlap with retrieved chunks; returning anti-hallucination refusal.")
         return f"{ANTI_HALLUCINATION_REFUSAL_PREFIX} this topic."
@@ -276,6 +321,10 @@ def answer_grounded_qa(
     for c in context_chunks:
         c_text_words = set(re.findall(r"\w+", (c.get("text", "") + " " + c.get("section_name", "")).lower()))
         cnt = len(q_words & c_text_words)
+        # Also include stem matches in count
+        for qw in q_words:
+            if len(qw) >= 4 and any(cw.startswith(qw[:4]) for cw in c_text_words if len(cw) >= 4):
+                cnt += 1
         if cnt > best_overlap_count:
             best_overlap_count = cnt
             best_chunk = c
@@ -305,12 +354,15 @@ def answer_grounded_qa(
             return text_out
         except Exception as e:
             err_str = str(e)
-            logger.warning(f"QA answering attempt {attempt} failed: {e}")
-            if "NOT_FOUND" in err_str and "gemini-3.6-flash" not in str(llm):
-                logger.info("Attempting fallback to gemini-3.6-flash...")
+            if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+                logger.warning(f"Gemini API rate limit reached (attempt {attempt}/3). Retrying with backoff...")
+            elif "NOT_FOUND" in err_str and "gemini-3.6-flash" not in str(llm):
+                logger.info("Switching model to gemini-3.6-flash...")
                 fallback_llm = get_gemini_client(model_override="gemini-3.6-flash")
                 if fallback_llm:
                     llm = fallback_llm
+            else:
+                logger.warning(f"QA answering attempt {attempt} error: {err_str[:120]}")
             if attempt < 3:
                 backoff = (2 ** attempt) + random.uniform(0.1, 0.5)
                 time.sleep(backoff)

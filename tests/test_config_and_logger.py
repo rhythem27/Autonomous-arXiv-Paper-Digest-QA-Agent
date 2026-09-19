@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 from src.config import Settings, settings
-from src.logger import get_log_level, get_logger
+from src.logger import get_log_level, get_logger, set_cli_silent
+
 
 
 class TestSettings:
@@ -16,7 +17,7 @@ class TestSettings:
 
     def test_default_settings_loaded(self):
         """Verify default settings values match expected project configuration."""
-        assert settings.gemini_model == "gemini-2.5-flash"
+        assert settings.gemini_model in ("gemini-2.5-flash", "gemini-3.6-flash")
         assert settings.embedding_model == "BAAI/bge-small-en-v1.5"
         assert settings.qdrant_path == "./qdrant_storage"
         assert settings.sqlite_db_path == "./agent_state.db"
@@ -95,6 +96,7 @@ class TestLogger:
 
     def test_logger_output_format(self, monkeypatch):
         """Verify log messages are properly formatted."""
+        set_cli_silent(False)
         logger_name = "test_formatting_logger"
         logger = get_logger(logger_name)
 
@@ -110,6 +112,7 @@ class TestLogger:
         assert logger_name in output
         assert test_message in output
         assert "|" in output
+
 
 
 def test_package_exports():

@@ -4,8 +4,10 @@ Provides animated execution spinners, presentation-ready briefing panels,
 and a multi-turn grounded QA conversational loop.
 """
 
+import logging
 import sys
 import uuid
+import warnings
 from typing import Optional
 import typer
 from rich.console import Console
@@ -15,13 +17,56 @@ from rich.table import Table
 from rich.prompt import Prompt
 from langchain_core.messages import HumanMessage, AIMessage
 
-from src.logger import get_logger
+# Ensure UTF-8 output encoding across Windows consoles to support math symbols and Unicode
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+# Suppress noisy third-party warnings (e.g. langchain fixed sampling warnings)
+warnings.filterwarnings("ignore")
+
+from src.logger import get_logger, set_cli_silent
 from src.agent.state import create_initial_state
 from src.agent.graph import build_agent_graph
 from src.agent.persistence import get_thread_config, get_sqlite_saver
 
+
+def _silence_console_loggers():
+    """Silence noisy module logs in interactive CLI mode so Rich UI remains pristine."""
+    set_cli_silent(True)
+    warnings.filterwarnings("ignore")
+    try:
+        import google.genai.models
+        google.genai.models.Models._logged_afc_warning = True
+        google.genai.models.AsyncModels._logged_afc_warning = True
+    except Exception:
+        pass
+    for name in [
+        "agent_graph",
+        "agent_nodes",
+        "gemini_client",
+        "src.tools.arxiv_client",
+        "src.parsers.pdf_parser",
+        "src.vectorstore.chunker",
+        "src.vectorstore.qdrant_store",
+        "src.agent.persistence",
+        "cli",
+        "arxiv_agent",
+        "google_genai",
+        "google_genai.models",
+        "google",
+    ]:
+        l = logging.getLogger(name)
+        l.setLevel(logging.ERROR)
+        for h in l.handlers:
+            h.setLevel(logging.ERROR)
+
 logger = get_logger("cli")
-console = Console()
+console = Console(legacy_windows=False)
+
+
 app = typer.Typer(
     name="arxiv-agent",
     help="Autonomous arXiv Paper Digest & Grounded QA Agent",
@@ -198,6 +243,7 @@ def cli_main(
     ),
 ):
     """Main CLI entrypoint for Autonomous arXiv Paper Digest & QA Agent."""
+    _silence_console_loggers()
     print_banner()
 
     # Resolve query
