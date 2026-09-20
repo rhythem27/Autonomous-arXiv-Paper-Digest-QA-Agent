@@ -22,21 +22,25 @@
   - [c. Executive Briefing Synthesis & Critical Limitations](#c-executive-briefing-synthesis--critical-limitations)
   - [d. Interactive Multi-Turn Grounded Q&A with Citations](#d-interactive-multi-turn-grounded-qa-with-citations)
   - [e. Helpful In-Session Commands & State Inspection](#e-helpful-in-session-commands--state-inspection)
-- [5. Getting Started & Installation](#5-getting-started--installation)
+- [5. Interactive Demonstration Notebook (`demo.ipynb`)](#5-interactive-demonstration-notebook-demoipynb)
+  - [Why Run the Demo Notebook?](#why-run-the-demo-notebook)
+  - [How to Run `demo.ipynb`](#how-to-run-demoipynb)
+  - [Cell-by-Cell Exploration Flow](#cell-by-cell-exploration-flow)
+- [6. Getting Started & Installation](#6-getting-started--installation)
   - [Prerequisites](#prerequisites)
   - [Installation via Poetry](#installation-via-poetry)
   - [Docker & Containerized Execution](#docker--containerized-execution)
-- [6. Usage Guide](#6-usage-guide)
+- [7. Usage Guide](#7-usage-guide)
   - [Rich Terminal CLI (`run.py`)](#rich-terminal-cli-runpy)
   - [Interactive Jupyter Notebook (`demo.ipynb`)](#interactive-jupyter-notebook-demoipynb)
-- [7. Benchmark Verification & Direct CLI Traces](#7-benchmark-verification--direct-cli-traces)
+- [8. Benchmark Verification & Direct CLI Traces](#8-benchmark-verification--direct-cli-traces)
   - [Ingestion & Progress Streaming](#ingestion--progress-streaming)
   - [Executive Briefing Display](#executive-briefing-display)
   - [Multi-Turn Grounded QA & Anti-Hallucination](#multi-turn-grounded-qa--anti-hallucination)
-- [8. Design Decisions & Engineering Tradeoffs](#8-design-decisions--engineering-tradeoffs)
-- [9. Failure Modes & Resilience Verification](#9-failure-modes--resilience-verification)
-- [10. Automated Test Suite](#10-automated-test-suite)
-- [11. Evaluation Rubric Compliance](#11-evaluation-rubric-compliance)
+- [9. Design Decisions & Engineering Tradeoffs](#9-design-decisions--engineering-tradeoffs)
+- [10. Failure Modes & Resilience Verification](#10-failure-modes--resilience-verification)
+- [11. Automated Test Suite](#11-automated-test-suite)
+- [12. Evaluation Rubric Compliance](#12-evaluation-rubric-compliance)
 
 ---
 
@@ -229,7 +233,53 @@ The following real-world execution walkthrough demonstrates an autonomous sessio
 
 ---
 
-## 5. Getting Started & Installation
+## 5. Interactive Demonstration Notebook (`demo.ipynb`)
+
+For demonstration, visual evaluation, and hands-on experimentation, the repository includes a self-contained interactive Jupyter notebook: [`demo.ipynb`](demo.ipynb).
+
+### Why Run the Demo Notebook?
+While the Rich CLI (`run.py`) provides an automated, production-grade terminal interface, [`demo.ipynb`](demo.ipynb) offers an inspectable, visual step-by-step walkthrough of the entire agentic pipeline:
+- 🗺️ **Visual StateGraph Diagram**: Automatically draws and displays the compiled LangGraph state machine diagram inline using Mermaid.
+- 📊 **Inspect Intermediate Agent States**: View candidate rankings, cosine similarity scores, and extracted PyMuPDF document sections directly in rendered Markdown tables.
+- 🧩 **Examine Local Vector Storage**: Directly query and inspect the embedded **Qdrant Local** collection (`qstore.search_chunks()`) to see dense vector scores, section tags, page numbers, and chunk previews.
+- 📋 **Synthesize Executive Briefings**: Generate a structured 7-dimension briefing highlighting mandatory **Explicit Limitations**.
+- 🛡️ **Test Anti-Hallucination Guardrails**: Run in-scope queries with exact section citations and out-of-scope queries (e.g. stock prices) to observe the agent's strict refusal mechanism.
+- 💡 **Live Interactive QA Console**: Ask custom questions in real time using rich embedded `ipywidgets` with instant citation feedback.
+
+### How to Run `demo.ipynb`
+
+#### Method 1: Inside VS Code / Cursor (Recommended)
+1. Ensure project dependencies are installed (`poetry install`).
+2. Open [`demo.ipynb`](demo.ipynb) in VS Code or Cursor.
+3. In the top-right corner of the notebook editor, click **Select Kernel** and choose the Python environment corresponding to your Poetry installation (e.g. `autonomous-arxiv-digest-agent-...` or `.venv`).
+4. Click **Run All** (or execute cells sequentially top-to-bottom using `Shift + Enter`).
+
+#### Method 2: Via Jupyter Lab or Classic Notebook
+Launch Jupyter directly within the Poetry virtual environment:
+```bash
+poetry run jupyter lab demo.ipynb
+# or
+poetry run jupyter notebook demo.ipynb
+```
+
+> [!TIP]
+> Because intermediate notebook cells depend on the state checkpoints produced by earlier cells (e.g., `full_state`, `selected`, `config`), **always execute cells sequentially from top to bottom** starting with **Cell 1**. If you restart the kernel, use **Run All** or **Run All Above** to repopulate state.
+
+### Cell-by-Cell Exploration Flow
+
+| Cell | Stage | What It Demonstrates |
+| :---: | :--- | :--- |
+| **Cell 1** | **Environment & Setup** | Verifies `.env` credentials, Gemini Flash, FastEmbed embeddings, and SQLite/Qdrant paths. |
+| **Cell 2** | **StateGraph Visualizer** | Compiles the LangGraph pipeline and renders the interactive Mermaid workflow diagram. |
+| **Cell 3** | **Autonomous Ingestion Loop** | Streams node execution in real time for test paper *"Attention Is All You Need"* (`1706.03762`). |
+| **Cell 4** | **Candidate Papers & Ranking** | Inspects candidate paper metadata and dense cosine similarity ranking scores. |
+| **Cell 5** | **PyMuPDF Sections & Qdrant** | Displays parsed structural sections with character counts and performs direct vector retrieval. |
+| **Cell 6** | **Executive Briefing** | Renders the complete 7-dimension briefing highlighting mandatory **Explicit Limitations**. |
+| **Cell 7** | **Grounded QA & Live Console** | Runs automated tests for in-scope citation retrieval and out-of-scope refusal, plus an interactive `ipywidgets` UI. |
+
+---
+
+## 6. Getting Started & Installation
 
 ### Prerequisites
 - **Python**: Version `3.11`, `3.12`, or `3.13`
@@ -283,7 +333,7 @@ docker compose run --rm agent poetry run python run.py
 
 ---
 
-## 6. Usage Guide
+## 7. Usage Guide
 
 ### Rich Terminal CLI (`run.py`)
 
@@ -333,7 +383,7 @@ The notebook executes 7 structured cells:
 
 ---
 
-## 7. Benchmark Verification & Direct CLI Traces
+## 8. Benchmark Verification & Direct CLI Traces
 
 ### Ingestion & Progress Streaming
 ```text
@@ -396,7 +446,7 @@ parallelization over long sequence lengths.
 
 ---
 
-## 8. Design Decisions & Engineering Tradeoffs
+## 9. Design Decisions & Engineering Tradeoffs
 
 *(Assessment §6 Deliverable: ½–1 page technical reflection)*
 
@@ -422,7 +472,7 @@ parallelization over long sequence lengths.
 
 ---
 
-## 9. Failure Modes & Resilience Verification
+## 10. Failure Modes & Resilience Verification
 
 Assessment §5 mandates handling realistic edge cases:
 
@@ -437,7 +487,7 @@ Assessment §5 mandates handling realistic edge cases:
 
 ---
 
-## 10. Automated Test Suite
+## 11. Automated Test Suite
 
 The repository features **144 automated tests** across 12 test modules:
 
@@ -463,7 +513,7 @@ poetry run pytest tests/ -v
 
 ---
 
-## 11. Evaluation Rubric Compliance
+## 12. Evaluation Rubric Compliance
 
 | Rubric Dimension | Weight | Implementation Highlights |
 | :--- | :---: | :--- |
