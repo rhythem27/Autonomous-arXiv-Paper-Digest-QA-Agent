@@ -16,21 +16,27 @@
 - [1. System Overview](#1-system-overview)
 - [2. LangGraph Architecture & Control Flow](#2-langgraph-architecture--control-flow)
 - [3. Key Architectural Components](#3-key-architectural-components)
-- [4. Getting Started & Installation](#4-getting-started--installation)
+- [4. End-to-End Example Run (Visual Walkthrough)](#4-end-to-end-example-run-visual-walkthrough)
+  - [a. Get Started & Query Any arXiv Paper](#a-get-started--query-any-arxiv-paper)
+  - [b. Autonomous Candidate Retrieval & Semantic Ranking](#b-autonomous-candidate-retrieval--semantic-ranking)
+  - [c. Executive Briefing Synthesis & Critical Limitations](#c-executive-briefing-synthesis--critical-limitations)
+  - [d. Interactive Multi-Turn Grounded Q&A with Citations](#d-interactive-multi-turn-grounded-qa-with-citations)
+  - [e. Helpful In-Session Commands & State Inspection](#e-helpful-in-session-commands--state-inspection)
+- [5. Getting Started & Installation](#5-getting-started--installation)
   - [Prerequisites](#prerequisites)
   - [Installation via Poetry](#installation-via-poetry)
   - [Docker & Containerized Execution](#docker--containerized-execution)
-- [5. Usage Guide](#5-usage-guide)
+- [6. Usage Guide](#6-usage-guide)
   - [Rich Terminal CLI (`run.py`)](#rich-terminal-cli-runpy)
   - [Interactive Jupyter Notebook (`demo.ipynb`)](#interactive-jupyter-notebook-demoipynb)
-- [6. End-to-End Example Run](#6-end-to-end-example-run)
+- [7. Benchmark Verification & Direct CLI Traces](#7-benchmark-verification--direct-cli-traces)
   - [Ingestion & Progress Streaming](#ingestion--progress-streaming)
   - [Executive Briefing Display](#executive-briefing-display)
   - [Multi-Turn Grounded QA & Anti-Hallucination](#multi-turn-grounded-qa--anti-hallucination)
-- [7. Design Decisions & Engineering Tradeoffs](#7-design-decisions--engineering-tradeoffs)
-- [8. Failure Modes & Resilience Verification](#8-failure-modes--resilience-verification)
-- [9. Automated Test Suite](#9-automated-test-suite)
-- [10. Evaluation Rubric Compliance](#10-evaluation-rubric-compliance)
+- [8. Design Decisions & Engineering Tradeoffs](#8-design-decisions--engineering-tradeoffs)
+- [9. Failure Modes & Resilience Verification](#9-failure-modes--resilience-verification)
+- [10. Automated Test Suite](#10-automated-test-suite)
+- [11. Evaluation Rubric Compliance](#11-evaluation-rubric-compliance)
 
 ---
 
@@ -123,7 +129,103 @@ graph TD;
 
 ---
 
-## 4. Getting Started & Installation
+## 4. End-to-End Example Run (Visual Walkthrough)
+
+The following real-world execution walkthrough demonstrates an autonomous session from query ingestion to candidate discovery, structural PDF parsing, executive briefing generation with critical limitations, and interactive cited Q&A on the research topic **`"KV-cache compression"`**.
+
+---
+
+### a. Get Started & Query Any arXiv Paper
+
+<p align="center">
+  <img src="base/readme_photos/get_started.png" alt="Get Started" width="900" />
+</p>
+
+- **Interactive CLI Launch**: Users start the agent using `poetry run python run.py`. The Rich terminal UI presents the active technology stack (**LangGraph**, **Gemini 2.5 Flash**, **Qdrant Local**, **BGE-small**, **PyMuPDF**, and **SQLite**) and prompts for input.
+- **Unified Query Classifier (`query_understanding` node)**: The system accepts three input modalities without requiring flags or manual configuration:
+  1. **Natural Language Research Topic**: e.g., `"KV-cache compression"`, `"mechanistic interpretability of reasoning models"`.
+  2. **Explicit arXiv Accession ID**: e.g., `"1706.03762"`, `"2401.04088v2"`.
+  3. **Direct arXiv URL**: e.g., `https://arxiv.org/abs/1706.03762` or `https://arxiv.org/pdf/1706.03762`.
+- **Session Thread Instantiation**: Upon query submission, LangGraph instantiates a dedicated session checkpoint (`session_<uuid>`) within local SQLite (`./agent_state.db`), enabling multi-turn conversation persistence across terminal sessions.
+
+---
+
+### b. Autonomous Candidate Retrieval & Semantic Ranking
+
+<p align="center">
+  <img src="base/readme_photos/result_papers.png" alt="Candidate Papers Table" width="900" />
+</p>
+
+- **Compliant arXiv Atom API Ingestion (`arxiv_retrieval` node)**: For topic-based inquiries, the agent executes compliant queries against the official arXiv Atom feed, applying exponential jittered backoff to respect arXiv rate limits.
+- **Dense Cosine Semantic Ranking (`selection_ranking` node)**:
+  - Abstracts of candidate papers are embedded locally using `BAAI/bge-small-en-v1.5` via FastEmbed (ONNX CPU runtime).
+  - The agent computes dense cosine similarity between the query embedding and candidate abstracts, ranking papers mathematically by true conceptual relevance rather than shallow keyword matching.
+- **Rich Candidate Table Presentation**:
+  - Displays a color-coded table containing **Rank (`#`)**, **arXiv ID** (`2604.24971`, `2605.09649`, `2605.08840`, `2607.01520`, `2510.14973`), **Paper Title**, **Primary Category** (`cs.LG`, `cs.CL`), and **Publication Date**.
+- **Automated Selection**: The top-ranked candidate (*The risk of KV cache compression*, `2607.01520`) is selected and automatically routed to the document download and structural parsing pipeline.
+
+---
+
+### c. Executive Briefing Synthesis & Critical Limitations
+
+<p align="center">
+  <img src="base/readme_photos/briefing.png" alt="Executive Briefing - Part 1" width="900" />
+</p>
+<p align="center">
+  <img src="base/readme_photos/briefing2.png" alt="Executive Briefing - Part 2" width="900" />
+</p>
+
+- **Structural PDF Extraction & Vector Indexing (`fetch_parse` $\rightarrow$ `chunk_embed` nodes)**:
+  - The PDF is downloaded with atomic disk caching into `./pdf_cache/`.
+  - **PyMuPDF (`fitz`)** parses multi-column layout streams into semantic sections (*Abstract*, *Introduction*, *Related Work*, *Architecture*, *Experiments*, *Limitations*), filtering running headers, footers, and arXiv watermarks.
+  - Extracted sections undergo windowed sliding chunking with section headers attached, and are indexed into **Qdrant Local** (`./qdrant_storage`).
+- **Google Gemini Executive Synthesis (`summarize` node)**: The agent synthesizes a high-signal 6-dimension executive briefing:
+  1. **Paper Metadata Banner**: Displays arXiv accession ID (`2607.01520`), publication timestamp (`2026-07-01T22:36:21+00:00`), full author list (*Lukas Haverbeck, Carmen Amo Alonso, Andres Felipe Posada-Moreno, Sebastian Trimpe, Marco Pavone*), and official PDF URL.
+  2. **Why This Paper Matters**: Highlights the work's core relevance to long-sequence inference memory overhead and reproducible evaluation methodologies.
+  3. **Problem Statement**: Details the memory bottleneck of full KV cache attention in large language models.
+  4. **Core Method & Technical Approach**: Summarizes the algorithmic formulation, end-to-end modular pipeline, and empirical parameterization.
+  5. **Key Results & Empirical Claims**: Reports benchmarks on LongBench-v2 (128k to 2M words), Qwen3-32B baseline comparisons, and truncation protocols.
+  6. **Limitations & Bottlenecks (Critical Assessment)**: **Mandatory, non-empty evaluation section**! Strictly evaluates compute overhead during high-resolution scaling, sensitivity to out-of-distribution noise, and bounded input distribution requirements.
+  7. **Suggested Follow-Up Questions**: Formulates targeted research questions (low-compute degradation, ablation necessities, noisy real-world data performance) to seed interactive inquiry.
+
+---
+
+### d. Interactive Multi-Turn Grounded Q&A with Citations
+
+<p align="center">
+  <img src="base/readme_photos/ask_question.png" alt="Interactive Grounded QA" width="900" />
+</p>
+
+- **Stateful Interactive REPL (`qa_answer` node)**: Following briefing generation, the agent initiates an interactive Q&A console, preserving conversational context across turns via SQLite checkpointing.
+- **Dense Vector Retrieval & Exact Section Citations**:
+  - For each user query, `BAAI/bge-small-en-v1.5` embeds the question and retrieves top-$k$ relevant semantic chunks from Qdrant Local.
+  - Answers are displayed in a dedicated green `Grounded Answer` panel featuring **explicit section citations**:
+    `Based on [Section: Related Work]: [Paper: The risk of KV cache compression | Section: Related Work]`
+  - Grounded responses synthesize exact theorems (e.g. Theorem 4.6, query-aware minimax risk) and architectural mechanics (e.g. prefix summaries at chunk boundaries $K$) directly from the text.
+- **Anti-Hallucination Guardrail**:
+  - The agent enforces strict semantic grounding verification. If a user asks an ungrounded or out-of-scope question, the agent strictly refuses:
+    > *"The provided paper text does not contain information regarding this topic."*
+  - This ensures 100% factual faithfulness and eliminates speculative hallucinations.
+
+---
+
+### e. Helpful In-Session Commands & State Inspection
+
+<p align="center">
+  <img src="base/readme_photos/commands.png" alt="Available Commands" width="900" />
+</p>
+
+- **In-Session Command Handler**: Users can execute utility commands directly at the `Ask a question:` prompt without restarting or interrupting the active thread:
+  - **`status` / `/status`**: Renders the `Session Status` panel displaying the active `Session ID` (`session_544696e2bb`) and active `Paper` title (*The risk of KV cache compression*). Facilitates session tracking and checkpoint verification.
+  - **`help` / `/help`**: Renders the `Available Commands` quick-reference guide:
+    - `exit / quit`: Gracefully exits the session, committing state checkpoints to SQLite and cleanly closing Qdrant vector storage.
+    - `status`: Displays current session and paper details.
+    - `help`: Shows the interactive command reference guide.
+    - `<any question>`: Asks a research question grounded strictly in the active paper.
+
+---
+
+## 5. Getting Started & Installation
 
 ### Prerequisites
 - **Python**: Version `3.11`, `3.12`, or `3.13`
@@ -177,7 +279,7 @@ docker compose run --rm agent poetry run python run.py
 
 ---
 
-## 5. Usage Guide
+## 6. Usage Guide
 
 ### Rich Terminal CLI (`run.py`)
 
@@ -227,7 +329,7 @@ The notebook executes 7 structured cells:
 
 ---
 
-## 6. End-to-End Example Run
+## 7. Benchmark Verification & Direct CLI Traces
 
 ### Ingestion & Progress Streaming
 ```text
@@ -290,7 +392,7 @@ parallelization over long sequence lengths.
 
 ---
 
-## 7. Design Decisions & Engineering Tradeoffs
+## 8. Design Decisions & Engineering Tradeoffs
 
 *(Assessment §6 Deliverable: ½–1 page technical reflection)*
 
@@ -316,7 +418,7 @@ parallelization over long sequence lengths.
 
 ---
 
-## 8. Failure Modes & Resilience Verification
+## 9. Failure Modes & Resilience Verification
 
 Assessment §5 mandates handling realistic edge cases:
 
@@ -331,7 +433,7 @@ Assessment §5 mandates handling realistic edge cases:
 
 ---
 
-## 9. Automated Test Suite
+## 10. Automated Test Suite
 
 The repository features **144 automated tests** across 12 test modules:
 
@@ -357,7 +459,7 @@ poetry run pytest tests/ -v
 
 ---
 
-## 10. Evaluation Rubric Compliance
+## 11. Evaluation Rubric Compliance
 
 | Rubric Dimension | Weight | Implementation Highlights |
 | :--- | :---: | :--- |
