@@ -138,7 +138,7 @@ The following real-world execution walkthrough demonstrates an autonomous sessio
 ### a. Get Started & Query Any arXiv Paper
 
 <p align="center">
-  <img src="base/readme_photos/get_started.png" alt="Get Started" width="900" />
+  <img src="assets/readme_photos/get_started.png" alt="Get Started" width="900" />
 </p>
 
 - **Interactive CLI Launch**: Users start the agent using `poetry run python run.py`. The Rich terminal UI presents the active technology stack (**LangGraph**, **Gemini 2.5 Flash**, **Qdrant Local**, **BGE-small**, **PyMuPDF**, and **SQLite**) and prompts for input.
@@ -153,7 +153,7 @@ The following real-world execution walkthrough demonstrates an autonomous sessio
 ### b. Autonomous Candidate Retrieval & Semantic Ranking
 
 <p align="center">
-  <img src="base/readme_photos/result_papers.png" alt="Candidate Papers Table" width="900" />
+  <img src="assets/readme_photos/result_papers.png" alt="Candidate Papers Table" width="900" />
 </p>
 
 - **Compliant arXiv Atom API Ingestion (`arxiv_retrieval` node)**: For topic-based inquiries, the agent executes compliant queries against the official arXiv Atom feed, applying exponential jittered backoff to respect arXiv rate limits.
@@ -169,10 +169,10 @@ The following real-world execution walkthrough demonstrates an autonomous sessio
 ### c. Executive Briefing Synthesis & Critical Limitations
 
 <p align="center">
-  <img src="base/readme_photos/briefing.png" alt="Executive Briefing - Part 1" width="900" />
+  <img src="assets/readme_photos/briefing.png" alt="Executive Briefing - Part 1" width="900" />
 </p>
 <p align="center">
-  <img src="base/readme_photos/briefing2.png" alt="Executive Briefing - Part 2" width="900" />
+  <img src="assets/readme_photos/briefing2.png" alt="Executive Briefing - Part 2" width="900" />
 </p>
 
 - **Structural PDF Extraction & Vector Indexing (`fetch_parse` $\rightarrow$ `chunk_embed` nodes)**:
@@ -193,7 +193,7 @@ The following real-world execution walkthrough demonstrates an autonomous sessio
 ### d. Interactive Multi-Turn Grounded Q&A with Citations
 
 <p align="center">
-  <img src="base/readme_photos/ask_question.png" alt="Interactive Grounded QA" width="900" />
+  <img src="assets/readme_photos/ask_question.png" alt="Interactive Grounded QA" width="900" />
 </p>
 
 - **Stateful Interactive REPL (`qa_answer` node)**: Following briefing generation, the agent initiates an interactive Q&A console, preserving conversational context across turns via SQLite checkpointing.
@@ -212,7 +212,7 @@ The following real-world execution walkthrough demonstrates an autonomous sessio
 ### e. Helpful In-Session Commands & State Inspection
 
 <p align="center">
-  <img src="base/readme_photos/commands.png" alt="Available Commands" width="900" />
+  <img src="assets/readme_photos/commands.png" alt="Available Commands" width="900" />
 </p>
 
 - **In-Session Command Handler**: Users can execute utility commands directly at the `Ask a question:` prompt without restarting or interrupting the active thread:
