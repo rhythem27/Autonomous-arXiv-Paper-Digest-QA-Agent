@@ -63,21 +63,22 @@ The agent workflow is governed by an explicit stateful directed graph compiled w
 ```mermaid
 ---
 config:
+  theme: dark
   flowchart:
     curve: linear
 ---
 graph TD;
-	__start__([<p>__start__</p>]):::first
-	query_understanding(query_understanding)
-	arxiv_retrieval(arxiv_retrieval)
-	selection_ranking(selection_ranking)
-	fetch_parse(fetch_parse)
-	metadata_fallback(metadata_fallback)
-	chunk_embed(chunk_embed)
-	summarize(summarize)
-	qa_answer(qa_answer)
-	handle_zero_results(handle_zero_results)
-	__end__([<p>__end__</p>]):::last
+	__start__(["__start__"]):::first
+	query_understanding("query_understanding")
+	arxiv_retrieval("arxiv_retrieval")
+	selection_ranking("selection_ranking")
+	fetch_parse("fetch_parse")
+	metadata_fallback("metadata_fallback"):::fallback
+	chunk_embed("chunk_embed")
+	summarize("summarize")
+	qa_answer("qa_answer")
+	handle_zero_results("handle_zero_results"):::fallback
+	__end__(["__end__"]):::last
 	__start__ -.-> qa_answer;
 	__start__ -.-> query_understanding;
 	arxiv_retrieval -.-> fetch_parse;
@@ -92,9 +93,12 @@ graph TD;
 	handle_zero_results --> __end__;
 	qa_answer --> __end__;
 	summarize --> __end__;
-	classDef default fill:#f2f0ff,stroke:#5c4dff,stroke-width:1.5px,line-height:1.2
-	classDef first fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
-	classDef last fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+
+	classDef default fill:#1e293b,stroke:#818cf8,stroke-width:2px,color:#ffffff;
+	classDef first fill:#0c4a6e,stroke:#38bdf8,stroke-width:2px,color:#ffffff;
+	classDef last fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#ffffff;
+	classDef fallback fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#ffffff;
+	linkStyle default stroke:#94a3b8,stroke-width:1.5px;
 ```
 
 ### Graph Lifecycle & Routing Rules:
