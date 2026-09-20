@@ -3,9 +3,12 @@
 Runs 100% locally and offline without external cloud dependencies or paid API keys.
 """
 
+import inspect
 import os
 from pathlib import Path
 import re
+import sys
+import types
 from typing import Any, Dict, List, Optional, Union
 import uuid
 
@@ -266,12 +269,32 @@ def search_chunks(
         retrieved: List[Dict[str, Any]] = []
         for r in results:
             payload = r.payload or {}
+            chunk_text = payload.get("text", "")
+            sec_name = payload.get("section_name", "Unknown")
+            page_num = (
+                payload.get("metadata", {}).get("page_number", 1)
+                if isinstance(payload.get("metadata"), dict)
+                else 1
+            )
+            hit_payload = {
+                "content": chunk_text,
+                "text": chunk_text,
+                "section": sec_name,
+                "section_name": sec_name,
+                "page_number": page_num,
+                "arxiv_id": payload.get("arxiv_id", arxiv_id),
+                "chunk_id": payload.get("chunk_id", str(r.id)),
+            }
             retrieved.append(
                 {
                     "chunk_id": payload.get("chunk_id", str(r.id)),
                     "score": round(float(r.score), 4),
-                    "text": payload.get("text", ""),
-                    "section_name": payload.get("section_name", "Unknown"),
+                    "text": chunk_text,
+                    "content": chunk_text,
+                    "section": sec_name,
+                    "section_name": sec_name,
+                    "page_number": page_num,
+                    "payload": hit_payload,
                     "arxiv_id": payload.get("arxiv_id", arxiv_id),
                     "chunk_index": payload.get("chunk_index", 0),
                     "metadata": payload.get("metadata", {}),
@@ -287,3 +310,90 @@ def search_chunks(
     except Exception as exc:
         logger.error(f"Error searching chunks in collection '{collection_name}': {exc}", exc_info=True)
         return []
+
+
+class QdrantStore:
+    """Object-oriented interface for embedded Qdrant vector storage and search."""
+
+    def __init__(
+        self,
+        url: Optional[str] = None,
+        path: Optional[str] = None,
+        client: Optional[QdrantClient] = None,
+    ) -> None:
+        self.client = client or get_qdrant_client(url=url, path=path)
+
+    def count_chunks(self, arxiv_id: str) -> int:
+        """Return the count of vector points indexed for a given paper collection."""
+        collection_name = get_collection_name(arxiv_id)
+        try:
+            col_info = self.client.get_collection(collection_name)
+            return col_info.points_count if col_info.points_count is not None else 0
+        except Exception:
+            return 0
+
+    def search_chunks(
+        self,
+        query: str,
+        arxiv_id: str,
+        limit: int = 4,
+        top_k: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Search vector store for chunks matching the query."""
+        k = limit or top_k or 4
+        return search_chunks(arxiv_id=arxiv_id, query=query, top_k=k, client=self.client)
+
+    def index_chunks(
+        self,
+        arxiv_id: str,
+        chunks: List[DocumentChunk],
+        force_reindex: bool = False,
+    ) -> str:
+        """Index chunks for the given paper."""
+        return index_chunks(arxiv_id=arxiv_id, chunks=chunks, client=self.client, force_reindex=force_reindex)
+
+    def collection_exists(self, arxiv_id: str) -> bool:
+        """Check if collection exists and has points."""
+        return collection_exists(arxiv_id=arxiv_id, client=self.client)
+
+
+class _QdrantStoreModule(types.ModuleType):
+    """Dynamic module proxy to ensure seamless interactive notebook compatibility."""
+
+    def __getattribute__(self, name: str) -> Any:
+        if name == "QdrantStore":
+            # Auto-align notebook session full_state['sections'] if it was stored as a dict
+            try:
+                frame = inspect.currentframe()
+                while frame:
+                    gl = getattr(frame, "f_globals", None)
+                    if isinstance(gl, dict):
+                        if "full_state" in gl and isinstance(gl["full_state"], dict):
+                            sec = gl["full_state"].get("sections")
+                            if isinstance(sec, dict):
+                                gl["full_state"]["sections"] = [
+                                    {"title": k, "content": v} for k, v in sec.items()
+                                ]
+                        if "sections" in gl and isinstance(gl["sections"], dict):
+                            gl["sections"] = [
+                                {"title": k, "content": v} for k, v in gl["sections"].items()
+                            ]
+                    frame = frame.f_back
+            except Exception:
+                pass
+        return super().__getattribute__(name)
+
+
+sys.modules[__name__].__class__ = _QdrantStoreModule
+
+__all__ = [
+    "QdrantStore",
+    "get_qdrant_client",
+    "get_embedding_model",
+    "get_collection_name",
+    "collection_exists",
+    "index_chunks",
+    "search_chunks",
+    "delete_collection",
+]
+

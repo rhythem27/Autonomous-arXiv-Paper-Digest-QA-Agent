@@ -36,13 +36,18 @@ def route_entrypoint(state: AgentState) -> str:
     selected_paper = state.get("selected_paper")
     briefing = state.get("briefing")
     qa_messages = state.get("qa_messages", [])
+    user_question = state.get("user_question")
 
-    if selected_paper and briefing and qa_messages:
-        last_msg = qa_messages[-1]
-        is_human = isinstance(last_msg, HumanMessage) or getattr(last_msg, "type", "") in ("human", "user")
-        if is_human:
-            logger.info("Routing entrypoint directly to 'qa_answer' for follow-up question.")
+    if selected_paper:
+        if user_question:
+            logger.info("Routing entrypoint directly to 'qa_answer' for user_question.")
             return "qa_answer"
+        if briefing and qa_messages:
+            last_msg = qa_messages[-1]
+            is_human = isinstance(last_msg, HumanMessage) or getattr(last_msg, "type", "") in ("human", "user")
+            if is_human:
+                logger.info("Routing entrypoint directly to 'qa_answer' for follow-up question.")
+                return "qa_answer"
 
     logger.info("Routing entrypoint to 'query_understanding' for paper digestion pipeline.")
     return "query_understanding"

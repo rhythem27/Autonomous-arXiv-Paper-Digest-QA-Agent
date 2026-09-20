@@ -6,7 +6,7 @@ defaults using Pydantic Settings.
 
 from pathlib import Path
 from typing import Optional
-from pydantic import Field
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,8 +59,15 @@ class Settings(BaseSettings):
     # Storage & Cache Configuration
     pdf_cache_dir: str = Field(
         default="./pdf_cache",
+        validation_alias=AliasChoices("pdf_cache_dir", "cache_dir"),
         description="Directory for caching downloaded arXiv PDFs",
     )
+
+    @property
+    def cache_dir(self) -> str:
+        """Alias for pdf_cache_dir for notebook and CLI compatibility."""
+        return self.pdf_cache_dir
+
 
     # Search & Retrieval Parameters
     arxiv_max_results: int = Field(

@@ -32,11 +32,13 @@ logger = get_logger("agent_nodes")
 
 def node_query_understanding(state: AgentState) -> Dict[str, Any]:
     """Node 1: Parses raw query into query_type, extracted_id, or search_keywords."""
-    raw_query = state.get("raw_query", "")
+    raw_query = state.get("raw_query") or state.get("query") or ""
     logger.info(f"Executing query_understanding node for input: {raw_query!r}")
 
     parsed = parse_query(raw_query)
     return {
+        "raw_query": raw_query,
+        "query": raw_query,
         "query_type": parsed.query_type,
         "extracted_id": parsed.clean_id,
         "search_keywords": parsed.search_query,
@@ -48,7 +50,7 @@ def node_arxiv_retrieval(state: AgentState) -> Dict[str, Any]:
     """Node 2: Queries the official arXiv API Atom feed by ID or topic search."""
     query_type = state.get("query_type", "topic_search")
     extracted_id = state.get("extracted_id")
-    search_keywords = state.get("search_keywords") or state.get("raw_query", "")
+    search_keywords = state.get("search_keywords") or state.get("raw_query") or state.get("query") or ""
 
     client = get_arxiv_client()
     candidate_papers: List[PaperMetadata] = []
@@ -185,8 +187,17 @@ def node_fetch_parse(state: AgentState) -> Dict[str, Any]:
         )
 
         parsing_status = parsed.get("parsing_status", "success")
+        raw_sections = parsed.get("sections") or {}
+        if isinstance(raw_sections, dict):
+            sections_list = [{"title": k, "content": v} for k, v in raw_sections.items()]
+        elif isinstance(raw_sections, list):
+            sections_list = raw_sections
+        else:
+            sections_list = []
+
         return {
             "parsed_paper": parsed,
+            "sections": sections_list,
             "status": "parsed" if parsing_status != "metadata_only" else "metadata_only",
         }
 
@@ -203,19 +214,21 @@ def node_metadata_fallback(state: AgentState) -> Dict[str, Any]:
     paper = state.get("selected_paper") or {}
     logger.info(f"Executing metadata fallback for paper: {paper.get('title', 'Unknown')}")
 
+    abstract_text = paper.get("abstract", "")
     fallback_parsed: ParsedPaper = {
         "title": paper.get("title", "Unknown Title"),
-        "abstract": paper.get("abstract", ""),
+        "abstract": abstract_text,
         "sections": {
-            "Abstract": paper.get("abstract", ""),
+            "Abstract": abstract_text,
         },
         "references": [],
-        "full_text": f"Title: {paper.get('title', '')}\n\nAbstract: {paper.get('abstract', '')}",
+        "full_text": f"Title: {paper.get('title', '')}\n\nAbstract: {abstract_text}",
         "parsing_status": "metadata_only",
     }
 
     return {
         "parsed_paper": fallback_parsed,
+        "sections": [{"title": "Abstract", "content": abstract_text}],
         "status": "metadata_fallback",
     }
 
@@ -280,13 +293,14 @@ def node_summarize(state: AgentState) -> Dict[str, Any]:
 def node_qa_answer(state: AgentState) -> Dict[str, Any]:
     """Node 7: Retrieves relevant chunks from Qdrant and returns grounded answers with anti-hallucination."""
     qa_messages = state.get("qa_messages", [])
+    user_query = state.get("user_question", "")
 
-    # Extract last human message
-    user_query = ""
-    for msg in reversed(qa_messages):
-        if isinstance(msg, HumanMessage) or getattr(msg, "type", "") in ("human", "user"):
-            user_query = str(msg.content)
-            break
+    # Extract last human message if not explicitly passed as user_question
+    if not user_query:
+        for msg in reversed(qa_messages):
+            if isinstance(msg, HumanMessage) or getattr(msg, "type", "") in ("human", "user"):
+                user_query = str(msg.content)
+                break
 
     if not user_query:
         return {"status": "qa_skipped"}
@@ -308,7 +322,21 @@ def node_qa_answer(state: AgentState) -> Dict[str, Any]:
         conversation_history=qa_messages,
     )
 
+    # Collect unique section citations
+    citations = []
+    for c in context_chunks:
+        sec = c.get("section_name") or c.get("section")
+        if sec and sec not in citations:
+            citations.append(sec)
+
+    qa_answer_dict = {
+        "answer": answer_text,
+        "citations": citations,
+        "question": user_query,
+    }
+
     return {
+        "qa_answer": qa_answer_dict,
         "qa_messages": [AIMessage(content=answer_text)],
         "status": "qa_answered",
     }

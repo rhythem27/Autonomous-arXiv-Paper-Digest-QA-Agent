@@ -22,6 +22,7 @@ class TestSettings:
         assert settings.qdrant_path == "./qdrant_storage"
         assert settings.sqlite_db_path == "./agent_state.db"
         assert settings.pdf_cache_dir == "./pdf_cache"
+        assert settings.cache_dir == "./pdf_cache"
         assert settings.arxiv_max_results == 5
         assert settings.top_k_chunks == 4
         assert settings.chunk_size == 800

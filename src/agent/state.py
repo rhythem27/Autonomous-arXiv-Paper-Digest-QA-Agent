@@ -32,36 +32,44 @@ class AgentState(TypedDict):
 
     session_id: str  # SQLite persistence session/thread identifier
     raw_query: str  # Original query or topic submitted by user
+    query: Optional[str]  # Flexible alias for raw_query
     query_type: str  # "arxiv_id", "topic_search", or "url"
     extracted_id: Optional[str]  # Canonical parsed arXiv ID if lookup
     search_keywords: Optional[str]  # Normalized keywords for topic search
     candidate_papers: List[PaperMetadata]  # Candidate paper records from arXiv API
     selected_paper: Optional[PaperMetadata]  # Targeted paper for digest & QA
     parsed_paper: Optional[ParsedPaper]  # Structured textual sections from PyMuPDF
+    sections: Optional[List[Dict[str, Any]]]  # Extracted structural sections
     qdrant_collection_name: Optional[str]  # Collection name where chunks are indexed
     briefing: Optional[ExecutiveBriefing]  # Structured Executive Briefing artifact
     qa_messages: Annotated[List[BaseMessage], add_messages]  # Conversational QA history with message reducer
+    user_question: Optional[str]  # Ad-hoc user question passed directly in notebooks
+    qa_answer: Optional[Dict[str, Any]]  # Structured QA answer dictionary with answer and citations
     error_message: Optional[str]  # Diagnostic message if errors or zero results occur
     status: str  # Pipeline stage status flag
 
 
 def create_initial_state(
-    raw_query: str,
+    raw_query: str = "",
     session_id: Optional[str] = None,
+    query: Optional[str] = None,
 ) -> AgentState:
     """Initialize a new default AgentState dictionary for graph execution.
 
     Args:
         raw_query: Raw user prompt, topic, or arXiv identifier.
         session_id: Optional session ID string. Generates UUID4 hex if omitted.
+        query: Optional alias for raw_query.
 
     Returns:
         AgentState: Fully typed and initialized state dictionary.
     """
+    q = (raw_query or query or "").strip()
     sid = session_id or f"session_{uuid.uuid4().hex[:10]}"
     return AgentState(
         session_id=sid,
-        raw_query=raw_query.strip() if raw_query else "",
+        raw_query=q,
+        query=q,
         query_type="topic_search",
         extracted_id=None,
         search_keywords=None,

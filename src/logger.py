@@ -137,3 +137,23 @@ def get_logger(name: str = "arxiv_agent") -> logging.Logger:
 
     return logger
 
+
+def setup_logger(name: str = "arxiv_agent", level_name: Optional[str] = None) -> logging.Logger:
+    """Retrieve or create a configured logger instance (alias for get_logger).
+
+    Args:
+        name: Name of the logger (typically __name__ of the calling module).
+        level_name: Optional log level override (e.g. 'DEBUG', 'INFO').
+
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
+    logger = get_logger(name)
+    if level_name:
+        level = get_log_level(level_name)
+        logger.setLevel(level)
+        for handler in logger.handlers:
+            handler.setLevel(level)
+    return logger
+
+
